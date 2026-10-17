@@ -189,6 +189,9 @@ class _HomePageState extends State<HomePage> {
     final Listing? result = await showListingForm(context, kind);
     if (result == null || !mounted) return;
 
+  // Form kapandıktan sonra güncel hafızayı tekrar oku!
+    await _loadMyListings();
+
     // Artık listeye manuel ekleme yapmıyoruz (setState sildik), 
     // çünkü Firebase Stream'i veriyi otomatik olarak ekranda güncelleyecek!
 
@@ -231,25 +234,45 @@ class _HomePageState extends State<HomePage> {
 
   // İlanı silme fonksiyonu
   Future<void> _deleteListing(String id) async {
-    await FirebaseFirestore.instance.collection('listings').doc(id).delete();
-    // Hafızadan da temizle
-    final prefs = await SharedPreferences.getInstance();
-    _myListings.remove(id);
-    await prefs.setStringList('my_listings', _myListings);
-    setState(() {}); // Ekranı güncelle
-    
-    if (mounted) {
-      Navigator.of(context).pop(); // Dialogu kapat
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İlan başarıyla silindi.')),
-      );
+    try {
+      await FirebaseFirestore.instance.collection('listings').doc(id).delete();
+
+      setState(() {
+        _myListings.remove(id);
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('my_listings', _myListings.toList());
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('İlan başarıyla silindi!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('HATA: $e'), 
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
   // Dialog penceresine çöp kutusunu ekle
-  void _showDetails(Listing l) {
-    final isMine = _myListings.contains(l.id);
+// void yerine Future<void> yapıp async ekliyoruz
+  Future<void> _showDetails(Listing l) async {
+    // 1. İlana tıklandığı an cihaz hafızasını EN GÜNCEL haliyle oku
+    final prefs = await SharedPreferences.getInstance();
+    final currentMyListings = prefs.getStringList('my_listings') ?? [];
+    final isMine = currentMyListings.contains(l.id);
 
+    if (!mounted) return;
+
+    // 2. Detay penceresini aç
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(

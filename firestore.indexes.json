@@ -1,0 +1,9 @@
+{
+  "fieldOverrides": [
+    {
+      "collectionGroup": "listings",
+      "fieldPath": "expiresAt",
+      "ttlConfig": {}
+    }
+  ]
+}
